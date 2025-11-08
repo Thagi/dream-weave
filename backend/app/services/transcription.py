@@ -1,10 +1,11 @@
-"""Utilities for converting recorded audio into transcripts."""
+"""Audio transcription helpers for DreamWeave backend."""
 
 from __future__ import annotations
 
 import base64
 import io
 from dataclasses import dataclass
+from typing import Any, cast
 
 from openai import OpenAI
 
@@ -28,13 +29,14 @@ class TranscriptionEngine:
 
         with io.BytesIO(audio) as handle:
             handle.name = "dream.m4a"
+            transcriptions = cast(Any, self._client.audio.transcriptions)
             if prompt is None:
-                response = self._client.audio.transcriptions.create(
+                response = transcriptions.create(
                     model=self._model,
                     file=handle,
                 )
             else:
-                response = self._client.audio.transcriptions.create(
+                response = transcriptions.create(
                     model=self._model,
                     file=handle,
                     prompt=prompt,

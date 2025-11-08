@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from threading import Lock
 
 from ..schemas.dreams import (
@@ -76,6 +76,7 @@ class DreamStore:
         self._records: dict[str, _DreamRecord] = {}
         self._lock = Lock()
         self._counter = 0
+        self._last_created_at: datetime | None = None
 
     def create(self, payload: DreamCreate) -> Dream:
         """Persist a dream and return the stored representation."""
@@ -91,6 +92,10 @@ class DreamStore:
             auto_tags = _generate_tags(payload.transcript)
             tags = list(dict.fromkeys([*tags, *auto_tags]))
 
+        timestamp = datetime.now(UTC)
+        if self._last_created_at is not None and timestamp <= self._last_created_at:
+            timestamp = self._last_created_at + timedelta(seconds=1)
+
         dream = Dream(
             id=identifier,
             title=payload.title,
@@ -98,11 +103,12 @@ class DreamStore:
             tags=tags,
             mood=payload.mood,
             summary=_summarise(payload.transcript),
-            created_at=datetime.now(UTC),
+            created_at=timestamp,
             journal=None,
             journal_generated_at=None,
         )
         self._records[dream.id] = _DreamRecord(dream=dream)
+        self._last_created_at = timestamp
         return dream
 
     def list(

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
@@ -43,9 +43,12 @@ def get_narrative_engine(request: Request) -> NarrativeEngine:
     engine = getattr(request.app.state, "narrative_engine", None)
     if engine is None:
         raise RuntimeError("Narrative engine is not configured on the application state")
-    if not isinstance(engine, NarrativeEngine):
-        raise RuntimeError("Invalid narrative engine configured on the application state")
-    return engine
+    if not isinstance(engine, NarrativeEngine) and not hasattr(engine, "journal"):
+        raise RuntimeError(
+            "Invalid narrative engine configured; "
+            "expected a journal-capable service",
+        )
+    return cast(NarrativeEngine, engine)
 
 
 def get_transcription_engine(request: Request) -> TranscriptionEngine:
@@ -54,9 +57,12 @@ def get_transcription_engine(request: Request) -> TranscriptionEngine:
     engine = getattr(request.app.state, "transcription_engine", None)
     if engine is None:
         raise RuntimeError("Transcription engine is not configured on the application state")
-    if not isinstance(engine, TranscriptionEngine):
-        raise RuntimeError("Invalid transcription engine configured on the application state")
-    return engine
+    if not isinstance(engine, TranscriptionEngine) and not hasattr(engine, "transcribe"):
+        raise RuntimeError(
+            "Invalid transcription engine configured; "
+            "expected a transcribe-capable service",
+        )
+    return cast(TranscriptionEngine, engine)
 
 
 StoreDependency = Annotated[DreamStore, Depends(get_store)]

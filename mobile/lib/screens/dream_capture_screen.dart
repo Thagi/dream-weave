@@ -54,6 +54,10 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
   String? _recordingError;
 
   String? _journalStatus;
+  bool _hasDreams = false;
+
+  bool _captureFormExpanded = true;
+  bool _captureFormToggled = false;
 
   final List<String> _promptSuggestions = const [
     'どこで夢が始まりましたか？',
@@ -70,7 +74,8 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
     _service = widget._service ?? DreamService();
     _alarmService = widget._alarmService ?? WakeAlarmService();
     _recorder = widget._recorder ?? VoiceRecorder();
-    _dreamsFuture = _service.fetchDreams();
+    final initialFuture = _service.fetchDreams();
+    _dreamsFuture = _trackDreams(initialFuture);
     _loadHighlights();
     _initialiseAssistants();
   }
@@ -127,6 +132,21 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
     }
   }
 
+  Future<List<DreamEntry>> _trackDreams(Future<List<DreamEntry>> source) {
+    return source.then((dreams) {
+      if (!mounted) {
+        return dreams;
+      }
+      setState(() {
+        _hasDreams = dreams.isNotEmpty;
+        if (!_captureFormToggled) {
+          _captureFormExpanded = dreams.isEmpty;
+        }
+      });
+      return dreams;
+    });
+  }
+
   Future<void> _reloadDreams() async {
     final query = _searchController.text.trim().isEmpty ? null : _searchController.text.trim();
     final future = _service.fetchDreams(
@@ -134,10 +154,11 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
       query: query,
       mood: _activeMoodFilter,
     );
+    final tracked = _trackDreams(future);
     setState(() {
-      _dreamsFuture = future;
+      _dreamsFuture = tracked;
     });
-    await future;
+    await tracked;
   }
 
   Future<void> _handleRefresh() async {
@@ -472,64 +493,7 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
                   const SizedBox(height: 24),
                   _buildPromptSuggestions(),
                   const SizedBox(height: 16),
-                  Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        TextFormField(
-                          controller: _titleController,
-                          decoration: const InputDecoration(
-                            labelText: 'Dream title',
-                            hintText: 'e.g. Sunrise flight over mountains',
-                          ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Please provide a short title.';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _transcriptController,
-                          decoration: const InputDecoration(
-                            labelText: 'Dream transcript',
-                            hintText: 'Describe what happened in your dream...',
-                          ),
-                          maxLines: 6,
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'A dream transcript is required.';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _tagsController,
-                          decoration: const InputDecoration(
-                            labelText: 'Tags',
-                            hintText: 'Comma separated keywords (optional)',
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _moodController,
-                          decoration: const InputDecoration(
-                            labelText: 'Mood',
-                            hintText: 'How did you feel on waking?',
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        FilledButton.icon(
-                          onPressed: _isSubmitting ? null : _submit,
-                          icon: const Icon(Icons.save_alt),
-                          label: Text(_isSubmitting ? 'Saving…' : 'Save dream'),
-                        ),
-                      ],
-                    ),
-                  ),
+                  _buildCaptureFormSection(),
                   const SizedBox(height: 24),
                   _buildSearchControls(),
                   const SizedBox(height: 24),
@@ -600,123 +564,115 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
 
   Widget _buildAssistantsCard() {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.alarm, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Wake-up alarm & voice capture',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (_assistantError != null)
-              Text(
-                _assistantError!,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: Theme.of(context).colorScheme.error),
-              )
-            else if (!_assistantsReady)
-              const Text('初期化中…通知とマイクへのアクセスを許可してください。')
-            else if (_scheduledAlarm != null)
-              Text(
-                '次のアラーム: ${_formatDateTime(_scheduledAlarm!.scheduledAt)} · 録音必須: ${_scheduledAlarm!.requireTranscription ? 'ON' : 'OFF'}',
-              )
-            else
-              const Text('まだアラームは設定されていません。'),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('録音を完了しないとアラームを止めない'),
-                    value: _requireVoiceCheckIn,
-                    onChanged: (value) {
-                      setState(() {
-                        _requireVoiceCheckIn = value;
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _isSchedulingAlarm ? null : _scheduleAlarm,
-                    icon: const Icon(Icons.alarm_add),
-                    label: Text(_isSchedulingAlarm ? 'Scheduling…' : 'Set wake alarm'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                IconButton(
-                  onPressed: _scheduledAlarm == null ? null : _cancelAlarm,
-                  icon: const Icon(Icons.close),
-                  tooltip: 'Clear alarm',
-                ),
-              ],
-            ),
-          ],
+      child: ExpansionTile(
+        maintainState: true,
+        initiallyExpanded: !_hasDreams,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        leading: const Icon(Icons.alarm, size: 20),
+        title: Text(
+          'Wake-up alarm & voice capture',
+          style: Theme.of(context).textTheme.titleMedium,
         ),
+        subtitle: Text(
+          'アラームと録音の条件をまとめて管理できます。',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        children: [
+          const SizedBox(height: 12),
+          if (_assistantError != null)
+            Text(
+              _assistantError!,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: Theme.of(context).colorScheme.error),
+            )
+          else if (!_assistantsReady)
+            const Text('初期化中…通知とマイクへのアクセスを許可してください。')
+          else if (_scheduledAlarm != null)
+            Text(
+              '次のアラーム: ${_formatDateTime(_scheduledAlarm!.scheduledAt)} · 録音必須: ${_scheduledAlarm!.requireTranscription ? 'ON' : 'OFF'}',
+            )
+          else
+            const Text('まだアラームは設定されていません。'),
+          const SizedBox(height: 12),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('録音を完了しないとアラームを止めない'),
+            value: _requireVoiceCheckIn,
+            onChanged: (value) {
+              setState(() {
+                _requireVoiceCheckIn = value;
+              });
+            },
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _isSchedulingAlarm ? null : _scheduleAlarm,
+                  icon: const Icon(Icons.alarm_add),
+                  label: Text(_isSchedulingAlarm ? 'Scheduling…' : 'Set wake alarm'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              IconButton(
+                onPressed: _scheduledAlarm == null ? null : _cancelAlarm,
+                icon: const Icon(Icons.close),
+                tooltip: 'Clear alarm',
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildVoiceCaptureCard() {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.mic, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Voice capture',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'タップして録音を開始・停止します。音声はWhisper互換モデルで自動的に文字起こしされ、テキスト欄へ追記されます。',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 12),
-            FilledButton.tonalIcon(
-              onPressed: _assistantsReady ? _toggleRecording : null,
-              icon: Icon(_isRecording ? Icons.stop : Icons.fiber_manual_record),
-              label: Text(_isRecording ? 'Stop recording' : 'Start recording'),
-            ),
-            if (_recordingBanner != null) ...[
-              const SizedBox(height: 8),
-              Text(_recordingBanner!, style: Theme.of(context).textTheme.bodySmall),
-            ],
-            if (_recordingError != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                _recordingError!,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: Theme.of(context).colorScheme.error),
-              ),
-            ],
-          ],
+      child: ExpansionTile(
+        maintainState: true,
+        initiallyExpanded: !_hasDreams,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        leading: const Icon(Icons.mic, size: 20),
+        title: Text(
+          'Voice capture',
+          style: Theme.of(context).textTheme.titleMedium,
         ),
+        subtitle: Text(
+          'Whisper互換モデルで文字起こしされテキスト欄へ追記されます。',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        children: [
+          const SizedBox(height: 12),
+          Text(
+            'タップして録音を開始・停止します。音声はWhisper互換モデルで自動的に文字起こしされ、テキスト欄へ追記されます。',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 12),
+          FilledButton.tonalIcon(
+            onPressed: _assistantsReady ? _toggleRecording : null,
+            icon: Icon(_isRecording ? Icons.stop : Icons.fiber_manual_record),
+            label: Text(_isRecording ? 'Stop recording' : 'Start recording'),
+          ),
+          if (_recordingBanner != null) ...[
+            const SizedBox(height: 8),
+            Text(_recordingBanner!, style: Theme.of(context).textTheme.bodySmall),
+          ],
+          if (_recordingError != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _recordingError!,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -742,6 +698,91 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
               )
               .toList(growable: false),
         ),
+      ],
+    );
+  }
+
+  Widget _buildCaptureFormSection() {
+    return ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: EdgeInsets.zero,
+      maintainState: true,
+      initiallyExpanded: _captureFormExpanded,
+      onExpansionChanged: (expanded) {
+        setState(() {
+          _captureFormExpanded = expanded;
+          _captureFormToggled = true;
+        });
+      },
+      title: Text(
+        'Capture a new dream',
+        style: Theme.of(context).textTheme.titleMedium,
+      ),
+      subtitle: Text(
+        '音声入力とタグで印象を残しましょう。',
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+      children: [
+        const SizedBox(height: 12),
+        Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextFormField(
+                controller: _titleController,
+                decoration: const InputDecoration(
+                  labelText: 'Dream title',
+                  hintText: 'e.g. Sunrise flight over mountains',
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please provide a short title.';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _transcriptController,
+                decoration: const InputDecoration(
+                  labelText: 'Dream transcript',
+                  hintText: 'Describe what happened in your dream...',
+                ),
+                maxLines: 6,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'A dream transcript is required.';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _tagsController,
+                decoration: const InputDecoration(
+                  labelText: 'Tags',
+                  hintText: 'Comma separated keywords (optional)',
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _moodController,
+                decoration: const InputDecoration(
+                  labelText: 'Mood',
+                  hintText: 'How did you feel on waking?',
+                ),
+              ),
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: _isSubmitting ? null : _submit,
+                icon: const Icon(Icons.save_alt),
+                label: Text(_isSubmitting ? 'Saving…' : 'Save dream'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
       ],
     );
   }
