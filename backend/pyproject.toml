@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dreamweave-backend"
+version = "0.1.0"
+description = "FastAPI backend for the DreamWeave application"
+readme = "README.md"
+authors = [{ name = "DreamWeave Team" }]
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.111.0,<0.112",
+    "uvicorn[standard]>=0.29,<0.31",
+    "pydantic>=2.7,<3.0",
+    "openai>=1.30.1,<2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2,<9.0",
+    "httpx>=0.27,<0.28",
+    "ruff>=0.4.7",
+    "mypy>=1.10.0",
+]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "B", "PL", "UP", "N"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["app"]
+addopts = "-q"
