@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from pydantic import BaseModel, Field
 
 from ...schemas.dreams import (
     Dream,
@@ -57,40 +59,69 @@ def get_transcription_engine(request: Request) -> TranscriptionEngine:
     return engine
 
 
+StoreDependency = Annotated[DreamStore, Depends(get_store)]
+NarrativeDependency = Annotated[NarrativeEngine, Depends(get_narrative_engine)]
+TranscriptionDependency = Annotated[TranscriptionEngine, Depends(get_transcription_engine)]
+
+
+class DreamListFilters(BaseModel):
+    """Filter options accepted when listing dreams."""
+
+    tag: str | None = Field(
+        default=None, description="Filter dreams that include the provided tag"
+    )
+    query: str | None = Field(
+        default=None,
+        description="Search recorded dreams by title, transcript, summary, or journal",
+    )
+    mood: str | None = Field(default=None, description="Filter by the recorded mood")
+    start: datetime | None = Field(
+        default=None, description="Limit to dreams recorded after this time"
+    )
+    end: datetime | None = Field(
+        default=None, description="Limit to dreams recorded before this time"
+    )
+    limit: int = Field(
+        default=20,
+        ge=1,
+        le=100,
+        description="Number of items to return",
+    )
+
+
+FiltersDependency = Annotated[DreamListFilters, Depends()]
+
+
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=Dream)
-async def create_dream(payload: DreamCreate, store: DreamStore = Depends(get_store)) -> Dream:
+async def create_dream(payload: DreamCreate, store: StoreDependency) -> Dream:
     """Create a dream entry and return the stored representation."""
 
     return store.create(payload)
 
 
 @router.get("/", response_model=DreamListResponse)
-async def list_dreams(
-    store: DreamStore = Depends(get_store),
-    tag: str | None = Query(None, description="Filter dreams that include the provided tag"),
-    query: str | None = Query(
-        None, description="Search recorded dreams by title, transcript, summary, or journal"
-    ),
-    mood: str | None = Query(None, description="Filter by the recorded mood"),
-    start: datetime | None = Query(None, description="Limit to dreams recorded after this time"),
-    end: datetime | None = Query(None, description="Limit to dreams recorded before this time"),
-    limit: int = Query(20, ge=1, le=100, description="Number of items to return"),
-) -> DreamListResponse:
+async def list_dreams(store: StoreDependency, filters: FiltersDependency) -> DreamListResponse:
     """Return recorded dreams optionally filtered by tag."""
 
-    dreams = store.list(tag=tag, query=query, mood=mood, start=start, end=end)
-    return DreamListResponse(dreams=dreams[:limit], total=len(dreams))
+    dreams = store.list(
+        tag=filters.tag,
+        query=filters.query,
+        mood=filters.mood,
+        start=filters.start,
+        end=filters.end,
+    )
+    return DreamListResponse(dreams=dreams[: filters.limit], total=len(dreams))
 
 
 @router.get("/highlights", response_model=DreamHighlights)
-async def get_highlights(store: DreamStore = Depends(get_store)) -> DreamHighlights:
+async def get_highlights(store: StoreDependency) -> DreamHighlights:
     """Return aggregate insight for recorded dreams."""
 
     return store.highlights()
 
 
 @router.get("/{dream_id}", response_model=Dream)
-async def get_dream(dream_id: str, store: DreamStore = Depends(get_store)) -> Dream:
+async def get_dream(dream_id: str, store: StoreDependency) -> Dream:
     """Return the details of a single dream."""
 
     dream = store.get(dream_id)
@@ -100,9 +131,7 @@ async def get_dream(dream_id: str, store: DreamStore = Depends(get_store)) -> Dr
 
 
 @router.put("/{dream_id}", response_model=Dream)
-async def update_dream(
-    dream_id: str, payload: DreamUpdate, store: DreamStore = Depends(get_store)
-) -> Dream:
+async def update_dream(dream_id: str, payload: DreamUpdate, store: StoreDependency) -> Dream:
     """Update an existing dream entry."""
 
     dream = store.update(dream_id, payload)
@@ -112,7 +141,7 @@ async def update_dream(
 
 
 @router.delete("/{dream_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_dream(dream_id: str, store: DreamStore = Depends(get_store)) -> Response:
+async def delete_dream(dream_id: str, store: StoreDependency) -> Response:
     """Delete an existing dream entry."""
 
     removed = store.delete(dream_id)
@@ -125,8 +154,8 @@ async def delete_dream(dream_id: str, store: DreamStore = Depends(get_store)) ->
 async def generate_journal(
     dream_id: str,
     payload: DreamJournalRequest,
-    store: DreamStore = Depends(get_store),
-    engine: NarrativeEngine = Depends(get_narrative_engine),
+    store: StoreDependency,
+    engine: NarrativeDependency,
 ) -> DreamJournalResponse:
     """Generate a dream journal narrative for the provided entry."""
 
@@ -144,7 +173,7 @@ async def generate_journal(
     updated = store.set_journal(
         dream_id,
         narrative=result.narrative,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
     )
     if updated is None:  # pragma: no cover - defensive path
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dream not found")
@@ -154,7 +183,7 @@ async def generate_journal(
 @router.post("/transcribe", response_model=DreamTranscriptionResponse)
 async def transcribe_audio(
     payload: DreamTranscriptionRequest,
-    engine: TranscriptionEngine = Depends(get_transcription_engine),
+    engine: TranscriptionDependency,
 ) -> DreamTranscriptionResponse:
     """Convert uploaded dream audio into text."""
 

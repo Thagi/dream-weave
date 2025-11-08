@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Sequence
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -11,8 +11,14 @@ from pydantic import BaseModel, Field, model_validator
 class DreamBase(BaseModel):
     """Shared attributes between dream payloads."""
 
-    title: str = Field(..., max_length=120, description="Short label for the recorded dream")
-    transcript: str = Field(..., min_length=1, description="Verbatim description captured from the user")
+    title: str = Field(
+        ..., max_length=120, description="Short label for the recorded dream"
+    )
+    transcript: str = Field(
+        ...,
+        min_length=1,
+        description="Verbatim description captured from the user",
+    )
     tags: list[str] = Field(default_factory=list, description="Keywords extracted from the dream")
     mood: str | None = Field(
         default=None,
@@ -51,7 +57,7 @@ class DreamUpdate(BaseModel):
     )
 
     @model_validator(mode="after")
-    def ensure_changes_present(self) -> "DreamUpdate":
+    def ensure_changes_present(self) -> DreamUpdate:
         """Guarantee that at least one attribute is supplied."""
 
         if all(

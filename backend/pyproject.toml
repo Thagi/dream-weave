@@ -24,8 +24,11 @@ dev = [
     "mypy>=1.10.0",
 ]
 
+
 [tool.ruff]
 line-length = 100
+
+[tool.ruff.lint]
 select = ["E", "F", "I", "B", "PL", "UP", "N"]
 
 [tool.ruff.lint.isort]

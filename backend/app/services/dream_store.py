@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime, timezone
-import re
+from datetime import UTC, datetime
 from threading import Lock
-from typing import Dict
 
 from ..schemas.dreams import (
     Dream,
@@ -52,9 +51,15 @@ _STOPWORDS = {
     "some",
     "when",
     "your",
-    "into",
     "once",
 }
+
+_SUMMARY_MAX_CHARACTERS = 280
+_SUMMARY_SUFFIX = "..."
+_SUMMARY_SUFFIX_LENGTH = len(_SUMMARY_SUFFIX)
+_SUMMARY_BODY_LENGTH = _SUMMARY_MAX_CHARACTERS - _SUMMARY_SUFFIX_LENGTH
+_MAX_AUTO_TAGS = 5
+_MIN_KEYWORD_LENGTH = 4
 
 
 @dataclass
@@ -68,7 +73,7 @@ class DreamStore:
     """Simple, threadsafe registry used during the early MVP stage."""
 
     def __init__(self) -> None:
-        self._records: Dict[str, _DreamRecord] = {}
+        self._records: dict[str, _DreamRecord] = {}
         self._lock = Lock()
         self._counter = 0
 
@@ -93,7 +98,7 @@ class DreamStore:
             tags=tags,
             mood=payload.mood,
             summary=_summarise(payload.transcript),
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             journal=None,
             journal_generated_at=None,
         )
@@ -242,8 +247,14 @@ class DreamStore:
             if dream.mood:
                 mood_counter.update([dream.mood])
 
-        top_tags = [TagCount(tag=tag, count=count) for tag, count in tag_counter.most_common(5)]
-        mood_counts = [MoodCount(mood=mood, count=count) for mood, count in mood_counter.most_common()]
+        top_tags = [
+            TagCount(tag=tag, count=count)
+            for tag, count in tag_counter.most_common(_MAX_AUTO_TAGS)
+        ]
+        mood_counts = [
+            MoodCount(mood=mood, count=count)
+            for mood, count in mood_counter.most_common()
+        ]
 
         return DreamHighlights(total_count=len(dreams), top_tags=top_tags, moods=mood_counts)
 
@@ -261,15 +272,19 @@ def _summarise(transcript: str) -> str:
         combined = f"{primary} {secondary}"
     else:
         combined = primary
-    if len(combined) <= 280:
+    if len(combined) <= _SUMMARY_MAX_CHARACTERS:
         return combined
-    return f"{combined[:277]}..."
+    return f"{combined[:_SUMMARY_BODY_LENGTH]}{_SUMMARY_SUFFIX}"
 
 
 def _generate_tags(transcript: str) -> list[str]:
     """Derive lightweight keyword tags from a transcript."""
 
     words = re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ']+", transcript.lower())
-    filtered = [word for word in words if len(word) >= 4 and word not in _STOPWORDS]
+    filtered = [
+        word
+        for word in words
+        if len(word) >= _MIN_KEYWORD_LENGTH and word not in _STOPWORDS
+    ]
     counter: Counter[str] = Counter(filtered)
-    return [word for word, _ in counter.most_common(5)]
+    return [word for word, _ in counter.most_common(_MAX_AUTO_TAGS)]

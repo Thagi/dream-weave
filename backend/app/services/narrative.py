@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Iterable, Sequence
 
 from openai import OpenAI
 
@@ -16,7 +16,7 @@ class NarrativeEngine:
         *,
         api_key: str | None,
         model: str = "gpt-4o-mini",
-        offline_fallback: "OfflineNarrative" | None = None,
+        offline_fallback: OfflineNarrative | None = None,
     ) -> None:
         self._client = OpenAI(api_key=api_key) if api_key else None
         self._model = model

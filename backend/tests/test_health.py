@@ -1,5 +1,7 @@
 """Tests for the FastAPI health check endpoint."""
 
+from http import HTTPStatus
+
 from fastapi.testclient import TestClient
 
 from app.main import create_app
@@ -16,5 +18,5 @@ class TestHealthEndpoint:
     def test_health_returns_ok(self) -> None:
         """Should return a successful response payload."""
         response = self.client.get("/health")
-        assert response.status_code == 200
+        assert response.status_code == HTTPStatus.OK
         assert response.json() == {"status": "ok"}
