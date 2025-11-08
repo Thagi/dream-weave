@@ -17,6 +17,8 @@ class VoiceRecorder {
 
   final AudioRecorder _recorder;
   bool _isRecording = false;
+  Directory? _workingDirectory;
+  String? _recordingPath;
 
   bool get isRecording => _isRecording;
 
@@ -35,6 +37,8 @@ class VoiceRecorder {
     if (!hasPermission) {
       throw RecordingPermissionException('Microphone permission not granted');
     }
+    final directory = await Directory.systemTemp.createTemp('dream_recorder_');
+    final path = '${directory.path}/capture.m4a';
     await _recorder.start(
       const RecordConfig(
         encoder: AudioEncoder.aacLc,
@@ -42,7 +46,10 @@ class VoiceRecorder {
         sampleRate: 16000,
         numChannels: 1,
       ),
+      path: path,
     );
+    _workingDirectory = directory;
+    _recordingPath = path;
     _isRecording = true;
   }
 
@@ -50,14 +57,20 @@ class VoiceRecorder {
     if (!_isRecording) {
       return null;
     }
-    final path = await _recorder.stop();
+    final path = await _recorder.stop() ?? _recordingPath;
     _isRecording = false;
+    _recordingPath = null;
     if (path == null) {
       return null;
     }
     final file = File(path);
     final bytes = await file.readAsBytes();
     await file.delete();
+    final directory = _workingDirectory;
+    _workingDirectory = null;
+    if (directory != null && await directory.exists()) {
+      await directory.delete(recursive: true);
+    }
     return Uint8List.fromList(bytes);
   }
 }

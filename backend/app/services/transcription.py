@@ -6,8 +6,7 @@ import base64
 import io
 from dataclasses import dataclass
 
-from openai import NOT_GIVEN, OpenAI
-from openai._types import NotGiven
+from openai import OpenAI
 
 
 class TranscriptionEngine:
@@ -21,19 +20,22 @@ class TranscriptionEngine:
         """Return the transcribed text."""
 
         if self._client is None:
-            text = _offline_decode(audio)
-            return TranscriptionResult(transcript=text, engine="offline", confidence=0.4)
+            decoded = _offline_decode(audio)
+            return TranscriptionResult(transcript=decoded, engine="offline", confidence=0.4)
 
         if not audio:
             raise ValueError("Audio payload is empty")
 
         with io.BytesIO(audio) as handle:
             handle.name = "dream.m4a"
-            response = self._client.audio.transcriptions.create(
-                model=self._model,
-                file=handle,
-                prompt=_optional_prompt(prompt),
-            )
+            request: dict[str, object] = {
+                "model": self._model,
+                "file": handle,
+            }
+            if prompt is not None:
+                request["prompt"] = prompt
+
+            response = self._client.audio.transcriptions.create(**request)
 
         text: str | None = getattr(response, "text", None)
         if not text:
@@ -58,16 +60,6 @@ def _offline_decode(audio: bytes) -> str:
         return audio.decode("utf-8", errors="ignore")
     except Exception:  # pragma: no cover - defensive fallback
         return ""
-
-
-def _optional_prompt(prompt: str | None) -> str | NotGiven:
-    """Return a value compatible with the OpenAI transcription client."""
-
-    if prompt is None:
-        return NOT_GIVEN
-    return prompt
-
-
 @dataclass
 class TranscriptionResult:
     """Structured transcription payload."""
