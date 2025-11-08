@@ -6,7 +6,8 @@ import base64
 import io
 from dataclasses import dataclass
 
-from openai import OpenAI
+from openai import NOT_GIVEN, OpenAI
+from openai._types import NotGiven
 
 
 class TranscriptionEngine:
@@ -31,10 +32,10 @@ class TranscriptionEngine:
             response = self._client.audio.transcriptions.create(
                 model=self._model,
                 file=handle,
-                prompt=prompt,
+                prompt=_optional_prompt(prompt),
             )
 
-        text = getattr(response, "text", None)
+        text: str | None = getattr(response, "text", None)
         if not text:
             raise RuntimeError("Transcription service returned no text")
 
@@ -57,6 +58,14 @@ def _offline_decode(audio: bytes) -> str:
         return audio.decode("utf-8", errors="ignore")
     except Exception:  # pragma: no cover - defensive fallback
         return ""
+
+
+def _optional_prompt(prompt: str | None) -> str | NotGiven:
+    """Return a value compatible with the OpenAI transcription client."""
+
+    if prompt is None:
+        return NOT_GIVEN
+    return prompt
 
 
 @dataclass

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../models/dream_entry.dart';
 import '../models/dream_highlights.dart';
-import '../models/dream_journal.dart';
 import '../services/alarm_service.dart';
 import '../services/dream_service.dart';
 import '../services/voice_recorder.dart';
@@ -771,14 +770,12 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
               hint: const Text('Mood'),
               items: <DropdownMenuItem<String?>>[
                 const DropdownMenuItem<String?>(value: null, child: Text('Any mood')),
-                ...?_highlights?.moods
-                    .map(
-                      (mood) => DropdownMenuItem<String?>(
-                        value: mood.mood,
-                        child: Text(mood.mood),
-                      ),
-                    )
-                    .toList(),
+                ...?_highlights?.moods.map(
+                  (mood) => DropdownMenuItem<String?>(
+                    value: mood.mood,
+                    child: Text(mood.mood),
+                  ),
+                ),
               ],
               onChanged: (value) {
                 setState(() {
@@ -981,9 +978,7 @@ class _DreamCard extends StatelessWidget {
                       avatar: const Icon(Icons.favorite, size: 16),
                       label: Text(dream.mood!),
                     ),
-                  ...dream.tags
-                      .map((tag) => Chip(label: Text('#$tag')))
-                      .toList(growable: false),
+                  ...dream.tags.map((tag) => Chip(label: Text('#$tag'))),
                 ],
               ),
             ],

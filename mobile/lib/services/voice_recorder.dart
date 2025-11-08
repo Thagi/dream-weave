@@ -3,16 +3,25 @@ import 'dart:typed_data';
 
 import 'package:record/record.dart';
 
-class VoiceRecorder {
-  VoiceRecorder({Record? record}) : _record = record ?? Record();
+class RecordingPermissionException implements Exception {
+  RecordingPermissionException(this.message);
 
-  final Record _record;
+  final String message;
+
+  @override
+  String toString() => 'RecordingPermissionException: $message';
+}
+
+class VoiceRecorder {
+  VoiceRecorder({AudioRecorder? recorder}) : _recorder = recorder ?? AudioRecorder();
+
+  final AudioRecorder _recorder;
   bool _isRecording = false;
 
   bool get isRecording => _isRecording;
 
   Future<void> initialise() async {
-    final hasPermission = await _record.hasPermission();
+    final hasPermission = await _recorder.hasPermission();
     if (!hasPermission) {
       throw RecordingPermissionException('Microphone permission not granted');
     }
@@ -22,11 +31,11 @@ class VoiceRecorder {
     if (_isRecording) {
       return;
     }
-    final hasPermission = await _record.hasPermission();
+    final hasPermission = await _recorder.hasPermission();
     if (!hasPermission) {
       throw RecordingPermissionException('Microphone permission not granted');
     }
-    await _record.start(
+    await _recorder.start(
       const RecordConfig(
         encoder: AudioEncoder.aacLc,
         bitRate: 128000,
@@ -41,7 +50,7 @@ class VoiceRecorder {
     if (!_isRecording) {
       return null;
     }
-    final path = await _record.stop();
+    final path = await _recorder.stop();
     _isRecording = false;
     if (path == null) {
       return null;

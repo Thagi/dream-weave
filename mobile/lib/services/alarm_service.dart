@@ -42,7 +42,7 @@ class WakeAlarmService {
       requestBadgePermission: false,
     );
 
-    final settings = InitializationSettings(android: androidSettings, iOS: iosSettings);
+    const settings = InitializationSettings(android: androidSettings, iOS: iosSettings);
     await _plugin.initialize(settings);
     _initialised = true;
   }
