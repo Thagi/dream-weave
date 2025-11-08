@@ -474,7 +474,7 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
         child: LayoutBuilder(
           builder: (context, constraints) => SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: Column(
@@ -484,10 +484,10 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
                     '起床直後の断片を逃さず記録しましょう。音声入力・AI要約・夢日記生成までワンストップで体験できます。',
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   if (_highlights != null && _highlights!.topTags.isNotEmpty) ...[
                     _buildTagFilters(context),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                   ],
                   _buildSearchControls(),
                   const SizedBox(height: 24),

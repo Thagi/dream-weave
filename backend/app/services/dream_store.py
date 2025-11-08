@@ -97,8 +97,7 @@ class DreamStore:
         timestamp = datetime.now(UTC)
         if self._last_created_at is not None:
             minimum = self._last_created_at + _TIMESTAMP_INCREMENT
-            if timestamp <= minimum:
-                timestamp = minimum + _TIMESTAMP_EPSILON
+            timestamp = max(timestamp, minimum + _TIMESTAMP_EPSILON)
 
         dream = Dream(
             id=identifier,
