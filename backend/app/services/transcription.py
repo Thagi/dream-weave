@@ -7,6 +7,7 @@ import io
 from dataclasses import dataclass
 
 from openai import OpenAI
+from openai._types import NOT_GIVEN, NotGiven
 
 
 class TranscriptionEngine:
@@ -28,14 +29,12 @@ class TranscriptionEngine:
 
         with io.BytesIO(audio) as handle:
             handle.name = "dream.m4a"
-            request: dict[str, object] = {
-                "model": self._model,
-                "file": handle,
-            }
-            if prompt is not None:
-                request["prompt"] = prompt
-
-            response = self._client.audio.transcriptions.create(**request)
+            prompt_arg: str | NotGiven = prompt if prompt is not None else NOT_GIVEN
+            response = self._client.audio.transcriptions.create(
+                model=self._model,
+                file=handle,
+                prompt=prompt_arg,
+            )
 
         text: str | None = getattr(response, "text", None)
         if not text:

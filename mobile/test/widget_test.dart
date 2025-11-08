@@ -6,7 +6,9 @@ import 'package:dream_weave/models/dream_highlights.dart';
 import 'package:dream_weave/models/dream_journal.dart';
 import 'package:dream_weave/models/transcription_result.dart';
 import 'package:dream_weave/screens/dream_capture_screen.dart';
+import 'package:dream_weave/services/alarm_service.dart';
 import 'package:dream_weave/services/dream_service.dart';
+import 'package:dream_weave/services/voice_recorder.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -151,16 +153,76 @@ class FakeDreamService extends DreamService {
   }
 }
 
+class StubWakeAlarmService implements WakeAlarmService {
+  ScheduledAlarm? _scheduledAlarm;
+
+  @override
+  ScheduledAlarm? get scheduledAlarm => _scheduledAlarm;
+
+  @override
+  Future<void> initialise() async {}
+
+  @override
+  Future<ScheduledAlarm> scheduleAlarm({
+    required TimeOfDay time,
+    bool requireTranscription = true,
+    String? note,
+  }) async {
+    final now = DateTime.now();
+    final scheduled = DateTime(now.year, now.month, now.day, time.hour, time.minute);
+    final alarm = ScheduledAlarm(
+      scheduledAt: scheduled,
+      requireTranscription: requireTranscription,
+      note: note,
+    );
+    _scheduledAlarm = alarm;
+    return alarm;
+  }
+
+  @override
+  Future<void> cancel() async {
+    _scheduledAlarm = null;
+  }
+}
+
+class StubVoiceRecorder implements VoiceRecorder {
+  bool _isRecording = false;
+
+  @override
+  bool get isRecording => _isRecording;
+
+  @override
+  Future<void> initialise() async {}
+
+  @override
+  Future<void> start() async {
+    _isRecording = true;
+  }
+
+  @override
+  Future<Uint8List?> stop() async {
+    if (!_isRecording) {
+      return null;
+    }
+    _isRecording = false;
+    return Uint8List(0);
+  }
+}
+
 void main() {
   testWidgets('Dream capture screen renders empty state, form, and highlights',
       (WidgetTester tester) async {
     await tester.pumpWidget(
       MaterialApp(
-        home: DreamCaptureScreen(service: FakeDreamService()),
+        home: DreamCaptureScreen(
+          service: FakeDreamService(),
+          alarmService: StubWakeAlarmService(),
+          recorder: StubVoiceRecorder(),
+        ),
       ),
     );
 
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.text('Dream Capture Journal'), findsOneWidget);
     expect(find.text('Wake-up alarm & voice capture'), findsOneWidget);
@@ -202,11 +264,15 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: DreamCaptureScreen(service: seededService),
+        home: DreamCaptureScreen(
+          service: seededService,
+          alarmService: StubWakeAlarmService(),
+          recorder: StubVoiceRecorder(),
+        ),
       ),
     );
 
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.text('Forest temple'), findsOneWidget);
     expect(find.text('Ocean city'), findsOneWidget);
@@ -215,8 +281,7 @@ void main() {
     expect(forestChipFinder, findsOneWidget);
 
     await tester.tap(forestChipFinder);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pumpAndSettle();
 
     expect(find.text('Forest temple'), findsOneWidget);
     expect(find.text('Ocean city'), findsNothing);
