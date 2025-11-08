@@ -15,23 +15,28 @@
 
 ### Stage 0: 基盤整備
 - Todo
-  - [ ] `backend/` にFastAPIプロジェクトのスキャフォールドを作成
-  - [ ] `mobile/` にFlutterプロジェクトを初期化
-  - [ ] CIワークフロー（lint + test）を構築（GitHub Actions想定）
-  - [ ] Supabaseローカル環境をdocker-composeまたはCLIで整備
+  - [x] `backend/` にFastAPIプロジェクトのスキャフォールドを作成（healthチェック・pytest含む）
+  - [x] `mobile/` にFlutterプロジェクトを初期化（基本ウィジェット・widgetテスト雛形）
+  - [x] CIワークフロー（lint + test）を構築（GitHub Actions想定）
+  - [x] Supabaseローカル環境をdocker-composeまたはCLIで整備
 - 完了条件
   - 主要ディレクトリが作成され、READMEにセットアップ手順が追記されている
   - CIがmainブランチで緑になる
 
 ### Stage 1: MVP記録機能
 - Todo
-  - [ ] アラーム設定・起床トリガ（F-1, F-2）をFlutterで実装
-  - [ ] Whisper APIを利用した音声入力・テキスト化（F-4）
-  - [ ] 会話補助プロンプトとUI（F-5）
-  - [ ] テキスト編集＆保存UI（F-6）
-  - [ ] バックエンドAPI: 夢エントリCRUD + タグ/要約生成
-  - [ ] 夢日記生成（F-8）: GPT-4o miniを使った要約エンドポイント
-  - [ ] 夢リスト・検索（F-17, F-18）: Flutter UI + Supabaseクエリ
+  - [x] アラーム設定・起床トリガ（F-1, F-2）をFlutterで実装
+  - [x] Whisper APIを利用した音声入力・テキスト化（F-4）
+  - [x] 会話補助プロンプトとUI（F-5）
+  - [x] テキスト編集＆保存UI（F-6）
+  - [x] バックエンドAPI: 夢エントリCRUD + タグ/要約生成
+    - [x] インメモリで作成/取得/一覧API + 要約生成を追加
+    - [x] ハイライト集計とタグ自動抽出・フィルタリングAPIを追加（暫定実装）
+    - [x] 夢エントリの更新・削除APIを追加し、自動タグ/要約の再生成に対応
+  - [x] 夢日記生成（F-8）: GPT-4o miniを使った要約エンドポイント
+  - [x] 夢リスト・検索（F-17, F-18）: Flutter UI + API連携（Supabase永続化はStage 2で予定）
+    - [x] MVP UIにタグフィルタと詳細モーダル、ハイライトカードを追加
+    - [x] キーワード・気分で検索できるFlutter UIを拡充
 - 完了条件
   - MVPフロー（起床→音声入力→要約→保存→閲覧）がE2Eで動作
   - 最低限のユニットテスト / 統合テストがCIで実行される
