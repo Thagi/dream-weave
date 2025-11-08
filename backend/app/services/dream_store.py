@@ -93,8 +93,10 @@ class DreamStore:
             tags = list(dict.fromkeys([*tags, *auto_tags]))
 
         timestamp = datetime.now(UTC)
-        if self._last_created_at is not None and timestamp <= self._last_created_at:
-            timestamp = self._last_created_at + timedelta(seconds=1)
+        if self._last_created_at is not None:
+            minimum = self._last_created_at + timedelta(seconds=1)
+            if timestamp < minimum:
+                timestamp = minimum
 
         dream = Dream(
             id=identifier,
