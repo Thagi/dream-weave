@@ -59,6 +59,9 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
   bool _captureFormExpanded = true;
   bool _captureFormToggled = false;
 
+  bool _assistantsExpanded = true;
+  int _assistantsExpansionRevision = 0;
+
   final List<String> _promptSuggestions = const [
     'どこで夢が始まりましたか？',
     '誰が登場しましたか？',
@@ -98,8 +101,18 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
         return;
       }
       setState(() {
+        final existingAlarm = _alarmService.scheduledAlarm;
         _assistantsReady = true;
         _assistantError = null;
+        _scheduledAlarm = existingAlarm;
+        if (existingAlarm != null) {
+          _requireVoiceCheckIn = existingAlarm.requireTranscription;
+        }
+        final shouldExpand = existingAlarm == null;
+        if (_assistantsExpanded != shouldExpand) {
+          _assistantsExpansionRevision++;
+        }
+        _assistantsExpanded = shouldExpand;
       });
     } catch (error) {
       if (!mounted) {
@@ -108,6 +121,8 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
       setState(() {
         _assistantsReady = false;
         _assistantError = 'マイクまたは通知の初期化に失敗しました: $error';
+        _assistantsExpanded = true;
+        _assistantsExpansionRevision++;
       });
     }
   }
@@ -233,7 +248,6 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
 
     setState(() {
       _isSchedulingAlarm = true;
-      _assistantError = null;
     });
 
     try {
@@ -249,6 +263,12 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
       }
       setState(() {
         _scheduledAlarm = alarm;
+        _requireVoiceCheckIn = alarm.requireTranscription;
+        if (_assistantsReady) {
+          _assistantError = null;
+        }
+        _assistantsExpanded = false;
+        _assistantsExpansionRevision++;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('アラームを ${_formatTimeOfDay(picked)} に設定しました。')),
@@ -257,6 +277,8 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
       if (mounted) {
         setState(() {
           _assistantError = 'アラームの設定に失敗しました: $error';
+          _assistantsExpanded = true;
+          _assistantsExpansionRevision++;
         });
       }
     } finally {
@@ -275,8 +297,19 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
     }
     setState(() {
       _scheduledAlarm = null;
+      _assistantsExpanded = true;
+      _assistantsExpansionRevision++;
     });
   }
+
+  bool get _permissionsReady => _assistantsReady && _assistantError == null;
+
+  bool get _hasScheduledAlarm => _scheduledAlarm != null;
+
+  bool get _voiceLockEnforced => _requireVoiceCheckIn;
+
+  bool get _canStartRecording =>
+      _permissionsReady && _hasScheduledAlarm && _voiceLockEnforced;
 
   Future<void> _toggleRecording() async {
     if (_isRecording) {
@@ -567,54 +600,58 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
   Widget _buildAssistantsCard() {
     return Card(
       child: ExpansionTile(
+        key: ValueKey<int>(_assistantsExpansionRevision),
         maintainState: true,
-        initiallyExpanded: !_hasDreams,
+        initiallyExpanded: _assistantsExpanded || _assistantError != null,
         tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
         leading: const Icon(Icons.alarm, size: 20),
-        title: Text(
-          'Wake-up alarm & voice capture',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
+        title: _buildStepTitle('STEP 0', 'Wake ritual readiness'),
         subtitle: Text(
-          'アラームと録音の条件をまとめて管理できます。',
+          '就寝前に起床アラームと録音の条件を整えて、朝のチェックインをシームレスに。',
           style: Theme.of(context).textTheme.bodySmall,
         ),
+        onExpansionChanged: (expanded) {
+          setState(() {
+            _assistantsExpanded = expanded;
+          });
+        },
         children: [
           const SizedBox(height: 12),
-          if (_assistantError != null)
-            Text(
-              _assistantError!,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: Theme.of(context).colorScheme.error),
-            )
-          else if (!_assistantsReady)
-            const Text('初期化中…通知とマイクへのアクセスを許可してください。')
-          else if (_scheduledAlarm != null)
-            Text(
-              '次のアラーム: ${_formatDateTime(_scheduledAlarm!.scheduledAt)} · 録音必須: ${_scheduledAlarm!.requireTranscription ? 'ON' : 'OFF'}',
-            )
-          else
-            const Text('まだアラームは設定されていません。'),
+          _buildWakePrepChecklist(),
+          const SizedBox(height: 12),
+          Text(
+            '睡眠前にここを済ませておくと、目覚めた瞬間に夢の断片へ集中できます。',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
           const SizedBox(height: 12),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
-            title: const Text('録音を完了しないとアラームを止めない'),
+            title: const Text('録音が完了するまでアラームを止めない'),
+            subtitle: Text(
+              _scheduledAlarm != null
+                  ? '設定を変更するには一度アラームをクリアしてから再設定してください。'
+                  : (_requireVoiceCheckIn
+                      ? '音声チェックを終えるまでアラームを停止できないようにして、記録の集中力を守ります。'
+                      : 'OFFにすると音声チェック前にアラームを止められますが、STEP 1 は開始できません。'),
+            ),
             value: _requireVoiceCheckIn,
-            onChanged: (value) {
-              setState(() {
-                _requireVoiceCheckIn = value;
-              });
-            },
+            onChanged: _scheduledAlarm != null || _isSchedulingAlarm
+                ? null
+                : (value) {
+                    setState(() {
+                      _requireVoiceCheckIn = value;
+                    });
+                  },
           ),
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: _isSchedulingAlarm ? null : _scheduleAlarm,
+                  onPressed: _isSchedulingAlarm || !_requireVoiceCheckIn
+                      ? null
+                      : _scheduleAlarm,
                   icon: const Icon(Icons.alarm_add),
                   label: Text(_isSchedulingAlarm ? 'Scheduling…' : 'Set wake alarm'),
                 ),
@@ -632,7 +669,84 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
     );
   }
 
+  Widget _buildWakePrepChecklist() {
+    final theme = Theme.of(context);
+    final alarm = _scheduledAlarm;
+    final hasAssistantError = _assistantError != null;
+    final readinessColor = hasAssistantError
+        ? theme.colorScheme.error
+        : _assistantsReady
+            ? theme.colorScheme.primary
+            : theme.colorScheme.secondary;
+    final String assistantTitle;
+    if (hasAssistantError) {
+      assistantTitle = 'アシスタントの準備に失敗しました';
+    } else if (_assistantsReady) {
+      assistantTitle = '通知とマイクの準備が整いました';
+    } else {
+      assistantTitle = '通知とマイクの権限を確認しています';
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildChecklistTile(
+          icon: hasAssistantError
+              ? Icons.error_outline
+              : _assistantsReady
+                  ? Icons.notifications_active
+                  : Icons.hourglass_bottom,
+          iconColor: readinessColor,
+          title: assistantTitle,
+          subtitle: _assistantError ??
+              (_assistantsReady
+                  ? 'アラーム停止の制御と録音が目覚めの瞬間から利用できます。'
+                  : 'デバイス設定で許可を確認し、アプリを開いたままでお待ちください。'),
+        ),
+        const SizedBox(height: 8),
+        _buildChecklistTile(
+          icon: alarm != null ? Icons.alarm_on : Icons.alarm_add,
+          iconColor:
+              alarm != null ? theme.colorScheme.primary : theme.colorScheme.secondary,
+          title: alarm != null
+              ? '次のアラームは ${_formatDateTime(alarm.scheduledAt)}'
+              : '起床アラームをセットしておきましょう',
+          subtitle: alarm != null
+              ? '録音必須: ${alarm.requireTranscription ? 'ON' : 'OFF'} · メモ: ${alarm.note ?? 'なし'}'
+              : '起床時刻とメモをセットして、未来の自分に合図を送りましょう。',
+        ),
+        const SizedBox(height: 8),
+        _buildChecklistTile(
+          icon: _requireVoiceCheckIn ? Icons.mic : Icons.mic_none,
+          iconColor: _requireVoiceCheckIn
+              ? theme.colorScheme.primary
+              : theme.colorScheme.tertiary,
+          title: _requireVoiceCheckIn ? '録音必須モードはONです' : '録音必須モードはOFFです',
+          subtitle: _requireVoiceCheckIn
+              ? '録音を完了するまでアラームを止められないようにし、朝の集中力を確保します。'
+              : 'STEP 1 で録音を始めるには、このモードをONにしてからアラームを再設定してください。',
+        ),
+      ],
+    );
+  }
+
   Widget _buildVoiceCaptureCard() {
+    final theme = Theme.of(context);
+    final alarm = _scheduledAlarm;
+    final bool hasAlarm = alarm != null;
+    final bool permissionsReady = _permissionsReady;
+    final bool lockReady = _voiceLockEnforced;
+    String readinessMessage;
+    if (_assistantError != null) {
+      readinessMessage = _assistantError!;
+    } else if (!permissionsReady) {
+      readinessMessage = '通知とマイクの初期化が完了するとボイスキャプチャが開放されます。';
+    } else if (!hasAlarm) {
+      readinessMessage = 'STEP 0 で起床アラームをセットしてください。';
+    } else if (!lockReady) {
+      readinessMessage = '録音必須モードをONにするとワンタップ録音を開始できます。';
+    } else {
+      readinessMessage = '録音を開始するとステータスが表示され、停止後は自動で文字起こしされます。';
+    }
     return Card(
       child: ExpansionTile(
         maintainState: true,
@@ -640,42 +754,130 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
         tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
         leading: const Icon(Icons.mic, size: 20),
-        title: Text(
-          'Voice capture',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
+        title: _buildStepTitle('STEP 1', 'Immediate voice capture'),
         subtitle: Text(
-          'Whisper互換モデルで文字起こしされテキスト欄へ追記されます。',
-          style: Theme.of(context).textTheme.bodySmall,
+          '起床直後の言葉を逃さず残すための最短導線。ワンタップで録音してテキスト化できます。',
+          style: theme.textTheme.bodySmall,
         ),
         children: [
           const SizedBox(height: 12),
+          _buildChecklistTile(
+            icon: _canStartRecording ? Icons.check_circle : Icons.lock_clock,
+            iconColor: _canStartRecording
+                ? theme.colorScheme.primary
+                : (_assistantError != null
+                    ? theme.colorScheme.error
+                    : theme.colorScheme.secondary),
+            title: _canStartRecording
+                ? '録音を開始する準備ができています'
+                : 'STEP 0 の準備を完了してください',
+            subtitle: readinessMessage,
+          ),
+          const SizedBox(height: 12),
           Text(
-            'タップして録音を開始・停止します。音声はWhisper互換モデルで自動的に文字起こしされ、テキスト欄へ追記されます。',
-            style: Theme.of(context).textTheme.bodyMedium,
+            '録音を止めると自動でDream transcriptの入力欄に追記され、後で手入力した内容と混ざりません。',
+            style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 12),
           FilledButton.tonalIcon(
-            onPressed: _assistantsReady ? _toggleRecording : null,
+            onPressed: _canStartRecording ? _toggleRecording : null,
             icon: Icon(_isRecording ? Icons.stop : Icons.fiber_manual_record),
             label: Text(_isRecording ? 'Stop recording' : 'Start recording'),
           ),
-          if (_recordingBanner != null) ...[
-            const SizedBox(height: 8),
-            Text(_recordingBanner!, style: Theme.of(context).textTheme.bodySmall),
-          ],
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: _recordingBanner != null
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      _recordingBanner!,
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
           if (_recordingError != null) ...[
             const SizedBox(height: 8),
             Text(
               _recordingError!,
-              style: Theme.of(context)
-                  .textTheme
+              style: theme.textTheme
                   .bodyMedium
-                  ?.copyWith(color: Theme.of(context).colorScheme.error),
+                  ?.copyWith(color: theme.colorScheme.error),
             ),
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildChecklistTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+  }) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: iconColor),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStepTitle(String stepLabel, String title) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final badgeStyle = theme.textTheme.labelSmall?.copyWith(
+      color: scheme.onPrimaryContainer,
+      letterSpacing: 0.8,
+      fontWeight: FontWeight.w700,
+    );
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: scheme.primaryContainer,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          child: Text(stepLabel, style: badgeStyle),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            title,
+            style: theme.textTheme.titleMedium,
+          ),
+        ),
+      ],
     );
   }
 

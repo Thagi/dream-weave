@@ -209,6 +209,107 @@ class StubVoiceRecorder implements VoiceRecorder {
   }
 }
 
+class ReadyWakeAlarmService implements WakeAlarmService {
+  ReadyWakeAlarmService({ScheduledAlarm? initialAlarm})
+      : _scheduledAlarm = initialAlarm;
+
+  ScheduledAlarm? _scheduledAlarm;
+
+  @override
+  ScheduledAlarm? get scheduledAlarm => _scheduledAlarm;
+
+  @override
+  Future<void> initialise() async {}
+
+  @override
+  Future<ScheduledAlarm> scheduleAlarm({
+    required TimeOfDay time,
+    bool requireTranscription = true,
+    String? note,
+  }) async {
+    final now = DateTime.now();
+    final scheduled = DateTime(now.year, now.month, now.day, time.hour, time.minute);
+    final alarm = ScheduledAlarm(
+      scheduledAt: scheduled,
+      requireTranscription: requireTranscription,
+      note: note,
+    );
+    _scheduledAlarm = alarm;
+    return alarm;
+  }
+
+  @override
+  Future<void> cancel() async {
+    _scheduledAlarm = null;
+  }
+}
+
+class FlakyWakeAlarmService implements WakeAlarmService {
+  FlakyWakeAlarmService({int failuresBeforeSuccess = 0})
+      : _remainingFailures = failuresBeforeSuccess;
+
+  int _remainingFailures;
+  ScheduledAlarm? _scheduledAlarm;
+
+  @override
+  ScheduledAlarm? get scheduledAlarm => _scheduledAlarm;
+
+  @override
+  Future<void> initialise() async {}
+
+  @override
+  Future<ScheduledAlarm> scheduleAlarm({
+    required TimeOfDay time,
+    bool requireTranscription = true,
+    String? note,
+  }) async {
+    if (_remainingFailures > 0) {
+      _remainingFailures -= 1;
+      throw Exception('failed to schedule');
+    }
+    final now = DateTime.now();
+    final scheduled = DateTime(now.year, now.month, now.day, time.hour, time.minute);
+    final alarm = ScheduledAlarm(
+      scheduledAt: scheduled,
+      requireTranscription: requireTranscription,
+      note: note,
+    );
+    _scheduledAlarm = alarm;
+    return alarm;
+  }
+
+  @override
+  Future<void> cancel() async {
+    _scheduledAlarm = null;
+  }
+}
+
+class ThrowingVoiceRecorder implements VoiceRecorder {
+  bool _isRecording = false;
+
+  @override
+  bool get isRecording => _isRecording;
+
+  @override
+  Future<void> initialise() async {
+    throw Exception('microphone failure');
+  }
+
+  @override
+  Future<void> start() async {
+    _isRecording = true;
+  }
+
+  @override
+  Future<Uint8List?> stop() async {
+    if (!_isRecording) {
+      return null;
+    }
+    _isRecording = false;
+    return Uint8List(0);
+  }
+}
+
 void main() {
   testWidgets('Dream capture screen renders empty state, form, and highlights',
       (WidgetTester tester) async {
@@ -225,8 +326,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Dream Capture Journal'), findsOneWidget);
-    expect(find.text('Wake-up alarm & voice capture'), findsOneWidget);
-    expect(find.text('Voice capture'), findsOneWidget);
+    expect(find.text('STEP 0'), findsOneWidget);
+    expect(find.text('STEP 1'), findsOneWidget);
+    expect(find.text('Wake ritual readiness'), findsOneWidget);
+    expect(find.text('Immediate voice capture'), findsOneWidget);
     expect(find.text('Save dream'), findsOneWidget);
     expect(find.text('Total dreams recorded: 0'), findsOneWidget);
     expect(
@@ -285,5 +388,122 @@ void main() {
 
     expect(find.text('Forest temple'), findsOneWidget);
     expect(find.text('Ocean city'), findsNothing);
+  });
+
+  testWidgets('Voice capture button remains disabled until wake ritual is complete',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DreamCaptureScreen(
+          service: FakeDreamService(),
+          alarmService: StubWakeAlarmService(),
+          recorder: StubVoiceRecorder(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    final startButtonFinder = find.widgetWithText(FilledButton, 'Start recording');
+    expect(startButtonFinder, findsOneWidget);
+    final startButton = tester.widget<FilledButton>(startButtonFinder);
+    expect(startButton.onPressed, isNull);
+  });
+
+  testWidgets('Voice capture unlocks when alarm and voice lock are configured',
+      (WidgetTester tester) async {
+    final initialAlarm = ScheduledAlarm(
+      scheduledAt: DateTime(2024, 6, 1, 6, 0),
+      requireTranscription: true,
+      note: 'Test note',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DreamCaptureScreen(
+          service: FakeDreamService(),
+          alarmService: ReadyWakeAlarmService(initialAlarm: initialAlarm),
+          recorder: StubVoiceRecorder(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    final startButtonFinder = find.widgetWithText(FilledButton, 'Start recording');
+    expect(startButtonFinder, findsOneWidget);
+    final startButton = tester.widget<FilledButton>(startButtonFinder);
+    expect(startButton.onPressed, isNotNull);
+  });
+
+  testWidgets('Assistant errors keep wake ritual guidance visible',
+      (WidgetTester tester) async {
+    final initialAlarm = ScheduledAlarm(
+      scheduledAt: DateTime(2024, 6, 1, 6, 0),
+      requireTranscription: true,
+      note: 'Test note',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DreamCaptureScreen(
+          service: FakeDreamService(),
+          alarmService: ReadyWakeAlarmService(initialAlarm: initialAlarm),
+          recorder: ThrowingVoiceRecorder(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('マイクまたは通知の初期化に失敗しました'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Successful alarm scheduling clears errors and unlocks capture',
+      (WidgetTester tester) async {
+    final alarmService = FlakyWakeAlarmService(failuresBeforeSuccess: 1);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DreamCaptureScreen(
+          service: FakeDreamService(),
+          alarmService: alarmService,
+          recorder: StubVoiceRecorder(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    final startButtonFinder = find.widgetWithText(FilledButton, 'Start recording');
+    expect(startButtonFinder, findsOneWidget);
+    expect(tester.widget<FilledButton>(startButtonFinder).onPressed, isNull);
+
+    final scheduleButtonFinder =
+        find.widgetWithText(FilledButton, 'Set wake alarm');
+    expect(scheduleButtonFinder, findsOneWidget);
+
+    await tester.tap(scheduleButtonFinder);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(
+      find.textContaining('アラームの設定に失敗しました'),
+      findsOneWidget,
+    );
+
+    await tester.tap(scheduleButtonFinder);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(
+      find.textContaining('アラームの設定に失敗しました'),
+      findsNothing,
+    );
+
+    expect(tester.widget<FilledButton>(startButtonFinder).onPressed, isNotNull);
   });
 }
