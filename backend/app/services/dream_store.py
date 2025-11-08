@@ -60,6 +60,8 @@ _SUMMARY_SUFFIX_LENGTH = len(_SUMMARY_SUFFIX)
 _SUMMARY_BODY_LENGTH = _SUMMARY_MAX_CHARACTERS - _SUMMARY_SUFFIX_LENGTH
 _MAX_AUTO_TAGS = 5
 _MIN_KEYWORD_LENGTH = 4
+_TIMESTAMP_INCREMENT = timedelta(seconds=1)
+_TIMESTAMP_EPSILON = timedelta(microseconds=1)
 
 
 @dataclass
@@ -94,9 +96,9 @@ class DreamStore:
 
         timestamp = datetime.now(UTC)
         if self._last_created_at is not None:
-            minimum = self._last_created_at + timedelta(seconds=1)
-            if timestamp < minimum:
-                timestamp = minimum
+            minimum = self._last_created_at + _TIMESTAMP_INCREMENT
+            if timestamp <= minimum:
+                timestamp = minimum + _TIMESTAMP_EPSILON
 
         dream = Dream(
             id=identifier,
