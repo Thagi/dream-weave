@@ -662,12 +662,12 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
     final theme = Theme.of(context);
     final alarm = _scheduledAlarm;
     final assistantError = _assistantError;
-    final bool hasError = assistantError != null;
-    final bool assistantsReady = _assistantsReady && !hasError;
+    final bool hasAssistantError = assistantError != null;
+    final bool assistantsReady = _assistantsReady && !hasAssistantError;
 
     String statusText;
-    if (hasError) {
-      statusText = assistantError!;
+    if (assistantError != null) {
+      statusText = assistantError;
     } else if (!assistantsReady) {
       statusText = '通知とマイクの権限を確認しています。アプリを開いたままお待ちください。';
     } else if (alarm != null) {
@@ -681,7 +681,7 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
       child: ExpansionTile(
         key: ValueKey<int>(_assistantsExpansionRevision),
         maintainState: true,
-        initiallyExpanded: _assistantsExpanded || hasError,
+        initiallyExpanded: _assistantsExpanded || hasAssistantError,
         tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
         leading: const Icon(Icons.alarm, size: 20),
@@ -697,7 +697,7 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
             Text(
               statusText,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: hasError ? theme.colorScheme.error : null,
+                color: hasAssistantError ? theme.colorScheme.error : null,
               ),
             ),
             const SizedBox(height: 8),
