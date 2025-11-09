@@ -48,6 +48,7 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
   ScheduledAlarm? _scheduledAlarm;
   bool _requireVoiceCheckIn = true;
   bool _isSchedulingAlarm = false;
+  TimeOfDay _preferredAlarmTime = const TimeOfDay(hour: 7, minute: 0);
 
   bool _isRecording = false;
   String? _recordingBanner;
@@ -109,6 +110,9 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
         _assistantsReady = true;
         _assistantError = null;
         _scheduledAlarm = existingAlarm;
+        if (existingAlarm != null) {
+          _preferredAlarmTime = TimeOfDay.fromDateTime(existingAlarm.scheduledAt);
+        }
         if (existingAlarm != null) {
           _requireVoiceCheckIn = existingAlarm.requireTranscription;
         }
@@ -271,21 +275,13 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
   }
 
   Future<void> _scheduleAlarm() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-    );
-    if (picked == null) {
-      return;
-    }
-
     setState(() {
       _isSchedulingAlarm = true;
     });
 
     try {
       final alarm = await _alarmService.scheduleAlarm(
-        time: picked,
+        time: _preferredAlarmTime,
         requireTranscription: _requireVoiceCheckIn,
         note: _transcriptController.text.isEmpty
             ? '話したいキーワードを思い出しましょう'
@@ -297,6 +293,7 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
       setState(() {
         _scheduledAlarm = alarm;
         _requireVoiceCheckIn = alarm.requireTranscription;
+        _preferredAlarmTime = TimeOfDay.fromDateTime(alarm.scheduledAt);
         if (_assistantsReady) {
           _assistantError = null;
         }
@@ -304,7 +301,11 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
         _assistantsExpansionRevision++;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('アラームを ${_formatTimeOfDay(picked)} に設定しました。')),
+        SnackBar(
+          content: Text(
+            'アラームを ${_formatTimeOfDay(_preferredAlarmTime)} に設定しました。',
+          ),
+        ),
       );
     } catch (error) {
       if (mounted) {
@@ -321,6 +322,20 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
         });
       }
     }
+  }
+
+  Future<void> _choosePreferredAlarmTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _preferredAlarmTime,
+      helpText: '起床アラームの時刻を選択',
+    );
+    if (picked == null || !mounted) {
+      return;
+    }
+    setState(() {
+      _preferredAlarmTime = picked;
+    });
   }
 
   Future<void> _cancelAlarm() async {
@@ -538,39 +553,64 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final showOnboardingRow = constraints.maxWidth >= 800;
+          final theme = Theme.of(context);
           final content = <Widget>[
             Text(
               '起床直後の断片を逃さず記録しましょう。音声入力・AI要約・夢日記生成までワンストップで体験できます。',
-              style: Theme.of(context).textTheme.bodyLarge,
+              style: theme.textTheme.bodyLarge,
             ),
             const SizedBox(height: 12),
-            _buildOnboardingSection(showOnboardingRow),
-            const SizedBox(height: 20),
+          ];
+
+          final searchAndFilters = <Widget>[
             if (_highlights != null && _highlights!.topTags.isNotEmpty) ...[
               _buildTagFilters(context),
               const SizedBox(height: 12),
             ],
             _buildSearchControls(),
             const SizedBox(height: 24),
-            _buildCaptureFormSection(),
-            const SizedBox(height: 24),
-            _buildHighlightsSection(),
-            const SizedBox(height: 24),
-            _buildPromptSuggestions(),
-            const SizedBox(height: 16),
-            Text(
-              _activeTag == null
-                  ? 'Recently recorded dreams'
-                  : 'Dreams tagged "$_activeTag"',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            if (_journalStatus != null) ...[
-              const SizedBox(height: 8),
+          ];
+
+          if (_hasDreams) {
+            content
+              ..addAll(searchAndFilters)
+              ..add(_buildOnboardingSection(showOnboardingRow))
+              ..add(const SizedBox(height: 20));
+          } else {
+            content
+              ..add(_buildOnboardingSection(showOnboardingRow))
+              ..add(const SizedBox(height: 20))
+              ..addAll(searchAndFilters);
+          }
+
+          content
+            ..add(_buildCaptureFormSection())
+            ..add(const SizedBox(height: 24))
+            ..add(_buildHighlightsSection())
+            ..add(const SizedBox(height: 24))
+            ..add(_buildPromptSuggestions())
+            ..add(const SizedBox(height: 16))
+            ..add(
               Text(
-                _journalStatus!,
-                style: Theme.of(context).textTheme.bodySmall,
+                _activeTag == null
+                    ? 'Recently recorded dreams'
+                    : 'Dreams tagged "$_activeTag"',
+                style: theme.textTheme.titleMedium,
               ),
-            ],
+            );
+
+          if (_journalStatus != null) {
+            content
+              ..add(const SizedBox(height: 8))
+              ..add(
+                Text(
+                  _journalStatus!,
+                  style: theme.textTheme.bodySmall,
+                ),
+              );
+          }
+
+          content.addAll([
             const SizedBox(height: 12),
             FutureBuilder<List<DreamEntry>>(
               future: _dreamsFuture,
@@ -813,36 +853,52 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
   Widget _buildWakePrepActions() {
     final scheduling = _isSchedulingAlarm;
     final hasAlarm = _scheduledAlarm != null;
-    return Wrap(
-      spacing: 12,
-      runSpacing: 8,
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        FilledButton(
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            minimumSize: const Size(0, 48),
-          ),
-          onPressed: scheduling || !_requireVoiceCheckIn ? null : _scheduleAlarm,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(scheduling ? Icons.hourglass_top : Icons.alarm_add),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  scheduling ? 'Scheduling…' : 'Set wake alarm',
-                  overflow: TextOverflow.ellipsis,
-                  softWrap: false,
-                ),
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            FilledButton(
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                minimumSize: const Size(0, 48),
               ),
-            ],
-          ),
+              onPressed: scheduling || !_requireVoiceCheckIn ? null : _scheduleAlarm,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(scheduling ? Icons.hourglass_top : Icons.alarm_add),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      scheduling ? 'Scheduling…' : 'Set wake alarm',
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            TextButton.icon(
+              onPressed: scheduling ? null : _choosePreferredAlarmTime,
+              icon: const Icon(Icons.schedule),
+              label: const Text('Adjust time'),
+            ),
+            TextButton.icon(
+              onPressed: hasAlarm && !scheduling ? _cancelAlarm : null,
+              icon: const Icon(Icons.close),
+              label: const Text('Clear alarm'),
+            ),
+          ],
         ),
-        TextButton.icon(
-          onPressed: hasAlarm ? _cancelAlarm : null,
-          icon: const Icon(Icons.close),
-          label: const Text('Clear alarm'),
+        const SizedBox(height: 8),
+        Text(
+          '次回の予定時刻: ${_formatTimeOfDay(_preferredAlarmTime)}',
+          style: theme.textTheme.bodySmall,
         ),
       ],
     );
