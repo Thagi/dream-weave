@@ -56,7 +56,7 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
   String? _journalStatus;
   bool _hasDreams = false;
 
-  bool _captureFormExpanded = true;
+  bool _captureFormExpanded = false;
   bool _captureFormToggled = false;
 
   bool _assistantsExpanded = true;
@@ -506,103 +506,130 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final sliverChildren = <Widget>[
-      Text(
-        '起床直後の断片を逃さず記録しましょう。音声入力・AI要約・夢日記生成までワンストップで体験できます。',
-        style: Theme.of(context).textTheme.bodyLarge,
-      ),
-      const SizedBox(height: 16),
-      _buildAssistantsCard(),
-      const SizedBox(height: 16),
-      _buildVoiceCaptureCard(),
-      const SizedBox(height: 24),
-      _buildCaptureFormSection(),
-      const SizedBox(height: 24),
-      if (_highlights != null && _highlights!.topTags.isNotEmpty) ...[
-        _buildTagFilters(context),
-        const SizedBox(height: 12),
-      ],
-      _buildSearchControls(),
-      const SizedBox(height: 24),
-      _buildHighlightsSection(),
-      const SizedBox(height: 24),
-      _buildPromptSuggestions(),
-      const SizedBox(height: 16),
-      Text(
-        _activeTag == null
-            ? 'Recently recorded dreams'
-            : 'Dreams tagged "$_activeTag"',
-        style: Theme.of(context).textTheme.titleMedium,
-      ),
-      if (_journalStatus != null) ...[
-        const SizedBox(height: 8),
-        Text(
-          _journalStatus!,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
-      const SizedBox(height: 12),
-      FutureBuilder<List<DreamEntry>>(
-        future: _dreamsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(child: CircularProgressIndicator()),
-            );
-          }
-          if (snapshot.hasError) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Text('Failed to load dreams: ${snapshot.error}'),
-            );
-          }
-          final dreams = snapshot.data ?? <DreamEntry>[];
-          if (dreams.isEmpty) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Text(
-                'No dreams recorded yet. Save your first dream to unlock insights and narrative summaries.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            );
-          }
-          return Column(
-            children: dreams
-                .map(
-                  (dream) => Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: _DreamCard(
-                      dream: dream,
-                      onTap: () => _openDreamDetails(dream),
-                    ),
-                  ),
-                )
-                .toList(growable: false),
-          );
-        },
-      ),
-      const SizedBox(height: 24),
-    ];
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Dream Capture Journal'),
       ),
-      body: RefreshIndicator(
-        onRefresh: _handleRefresh,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate(sliverChildren),
-              ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final showOnboardingRow = constraints.maxWidth >= 760;
+          final content = <Widget>[
+            Text(
+              '起床直後の断片を逃さず記録しましょう。音声入力・AI要約・夢日記生成までワンストップで体験できます。',
+              style: Theme.of(context).textTheme.bodyLarge,
             ),
-          ],
-        ),
+            const SizedBox(height: 16),
+            _buildOnboardingSection(showOnboardingRow),
+            const SizedBox(height: 24),
+            if (_highlights != null && _highlights!.topTags.isNotEmpty) ...[
+              _buildTagFilters(context),
+              const SizedBox(height: 12),
+            ],
+            _buildSearchControls(),
+            const SizedBox(height: 24),
+            _buildCaptureFormSection(),
+            const SizedBox(height: 24),
+            _buildHighlightsSection(),
+            const SizedBox(height: 24),
+            _buildPromptSuggestions(),
+            const SizedBox(height: 16),
+            Text(
+              _activeTag == null
+                  ? 'Recently recorded dreams'
+                  : 'Dreams tagged "$_activeTag"',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            if (_journalStatus != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _journalStatus!,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+            const SizedBox(height: 12),
+            FutureBuilder<List<DreamEntry>>(
+              future: _dreamsFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Text('Failed to load dreams: ${snapshot.error}'),
+                  );
+                }
+                final dreams = snapshot.data ?? <DreamEntry>[];
+                if (dreams.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Text(
+                      'No dreams recorded yet. Save your first dream to unlock insights and narrative summaries.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  );
+                }
+                return Column(
+                  children: dreams
+                      .map(
+                        (dream) => Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: _DreamCard(
+                            dream: dream,
+                            onTap: () => _openDreamDetails(dream),
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                );
+              },
+            ),
+            const SizedBox(height: 24),
+          ];
+
+          return RefreshIndicator(
+            onRefresh: _handleRefresh,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  sliver: SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: content,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
+    );
+  }
+
+  Widget _buildOnboardingSection(bool horizontal) {
+    if (horizontal) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: _buildAssistantsCard()),
+          const SizedBox(width: 16),
+          Expanded(child: _buildVoiceCaptureCard()),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildAssistantsCard(),
+        const SizedBox(height: 16),
+        _buildVoiceCaptureCard(),
+      ],
     );
   }
 
@@ -907,67 +934,110 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
         },
         children: [
           const SizedBox(height: 12),
-          _buildChecklistTile(
-            icon: _canStartRecording ? Icons.check_circle : Icons.lock_clock,
-            iconColor: _canStartRecording
-                ? theme.colorScheme.primary
-                : (_assistantError != null
-                    ? theme.colorScheme.error
-                    : theme.colorScheme.secondary),
-            title: _canStartRecording
-                ? '録音を開始する準備ができています'
-                : 'STEP 0 の準備を完了してください',
-            subtitle: _assistantError != null
-                ? 'Wake ritual を再確認してください。問題の詳細は STEP 0 に表示されています。'
-                : readinessMessage,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 680;
+              final guidanceColumn = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildChecklistTile(
+                    icon: _canStartRecording ? Icons.check_circle : Icons.lock_clock,
+                    iconColor: _canStartRecording
+                        ? theme.colorScheme.primary
+                        : (_assistantError != null
+                            ? theme.colorScheme.error
+                            : theme.colorScheme.secondary),
+                    title: _canStartRecording
+                        ? '録音を開始する準備ができています'
+                        : 'STEP 0 の準備を完了してください',
+                    subtitle: _assistantError != null
+                        ? 'Wake ritual を再確認してください。問題の詳細は STEP 0 に表示されています。'
+                        : readinessMessage,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '録音を止めると自動でDream transcriptの入力欄に追記され、後で手入力した内容と混ざりません。',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    hasDreamHistory
+                        ? '新しい録音はタイムラインの先頭に追記され、過去の夢とも並べて振り返れます。'
+                        : 'まだ夢の記録がありません。朝の録音を保存するとタイムラインが開きます。',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
+              );
+
+              final controls = _buildVoiceCaptureControls(theme);
+
+              if (isCompact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    guidanceColumn,
+                    const SizedBox(height: 12),
+                    controls,
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: guidanceColumn),
+                  const SizedBox(width: 16),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 260),
+                    child: controls,
+                  ),
+                ],
+              );
+            },
           ),
-          const SizedBox(height: 12),
-          Text(
-            '録音を止めると自動でDream transcriptの入力欄に追記され、後で手入力した内容と混ざりません。',
-            style: theme.textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            hasDreamHistory
-                ? '新しい録音はタイムラインの先頭に追記され、過去の夢とも並べて振り返れます。'
-                : 'まだ夢の記録がありません。朝の録音を保存するとタイムラインが開きます。',
-            style: theme.textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 12),
-          FilledButton(
-            onPressed: _canStartRecording ? _toggleRecording : null,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(_isRecording ? Icons.stop : Icons.fiber_manual_record),
-                const SizedBox(width: 8),
-                Text(_isRecording ? 'Stop recording' : 'Start recording'),
-              ],
-            ),
-          ),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            child: _recordingBanner != null
-                ? Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      _recordingBanner!,
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  )
-                : const SizedBox.shrink(),
-          ),
-          if (_recordingError != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              _recordingError!,
-              style: theme.textTheme
-                  .bodyMedium
-                  ?.copyWith(color: theme.colorScheme.error),
-            ),
-          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildVoiceCaptureControls(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FilledButton(
+          onPressed: _canStartRecording ? _toggleRecording : null,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(_isRecording ? Icons.stop : Icons.fiber_manual_record),
+              const SizedBox(width: 8),
+              Text(_isRecording ? 'Stop recording' : 'Start recording'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: _recordingBanner != null
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    _recordingBanner!,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+        if (_recordingError != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _recordingError!,
+            style:
+                theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error),
+          ),
+        ],
+      ],
     );
   }
 
