@@ -771,7 +771,9 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
             title: _canStartRecording
                 ? '録音を開始する準備ができています'
                 : 'STEP 0 の準備を完了してください',
-            subtitle: readinessMessage,
+            subtitle: _assistantError != null
+                ? 'Wake ritual を再確認してください。問題の詳細は STEP 0 に表示されています。'
+                : readinessMessage,
           ),
           const SizedBox(height: 12),
           Text(
@@ -779,7 +781,7 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 12),
-          FilledButton.tonalIcon(
+          FilledButton.icon(
             onPressed: _canStartRecording ? _toggleRecording : null,
             icon: Icon(_isRecording ? Icons.stop : Icons.fiber_manual_record),
             label: Text(_isRecording ? 'Stop recording' : 'Start recording'),
