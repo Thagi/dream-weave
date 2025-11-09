@@ -781,10 +781,16 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 12),
-          FilledButton.icon(
+          FilledButton(
             onPressed: _canStartRecording ? _toggleRecording : null,
-            icon: Icon(_isRecording ? Icons.stop : Icons.fiber_manual_record),
-            label: Text(_isRecording ? 'Stop recording' : 'Start recording'),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(_isRecording ? Icons.stop : Icons.fiber_manual_record),
+                const SizedBox(width: 8),
+                Text(_isRecording ? 'Stop recording' : 'Start recording'),
+              ],
+            ),
           ),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 200),
