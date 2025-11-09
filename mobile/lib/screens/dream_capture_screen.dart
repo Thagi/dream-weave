@@ -874,6 +874,7 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
     final bool hasAlarm = alarm != null;
     final bool permissionsReady = _permissionsReady;
     final bool lockReady = _voiceLockEnforced;
+    final bool hasDreamHistory = _hasDreams;
     String readinessMessage;
     if (_assistantError != null) {
       readinessMessage = _assistantError!;
@@ -923,6 +924,13 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
           const SizedBox(height: 12),
           Text(
             '録音を止めると自動でDream transcriptの入力欄に追記され、後で手入力した内容と混ざりません。',
+            style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            hasDreamHistory
+                ? '新しい録音はタイムラインの先頭に追記され、過去の夢とも並べて振り返れます。'
+                : 'まだ夢の記録がありません。朝の録音を保存するとタイムラインが開きます。',
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 12),
