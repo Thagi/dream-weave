@@ -554,7 +554,8 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
         builder: (context, constraints) {
           final showOnboardingRow = constraints.maxWidth >= 800;
           final theme = Theme.of(context);
-          final content = <Widget>[
+
+          final intro = <Widget>[
             Text(
               '起床直後の断片を逃さず記録しましょう。音声入力・AI要約・夢日記生成までワンストップで体験できます。',
               style: theme.textTheme.bodyLarge,
@@ -562,7 +563,7 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
             const SizedBox(height: 12),
           ];
 
-          final searchAndFilters = <Widget>[
+          final filters = <Widget>[
             if (_highlights != null && _highlights!.topTags.isNotEmpty) ...[
               _buildTagFilters(context),
               const SizedBox(height: 12),
@@ -571,19 +572,25 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
             const SizedBox(height: 24),
           ];
 
+          final onboarding = <Widget>[
+            _buildOnboardingSection(showOnboardingRow),
+            const SizedBox(height: 24),
+          ];
+
+          final bodyContent = <Widget>[]
+            ..addAll(intro);
+
           if (_hasDreams) {
-            content
-              ..addAll(searchAndFilters)
-              ..add(_buildOnboardingSection(showOnboardingRow))
-              ..add(const SizedBox(height: 20));
+            bodyContent
+              ..addAll(filters)
+              ..addAll(onboarding);
           } else {
-            content
-              ..add(_buildOnboardingSection(showOnboardingRow))
-              ..add(const SizedBox(height: 20))
-              ..addAll(searchAndFilters);
+            bodyContent
+              ..addAll(onboarding)
+              ..addAll(filters);
           }
 
-          content
+          bodyContent
             ..add(_buildCaptureFormSection())
             ..add(const SizedBox(height: 24))
             ..add(_buildHighlightsSection())
@@ -600,7 +607,7 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
             );
 
           if (_journalStatus != null) {
-            content
+            bodyContent
               ..add(const SizedBox(height: 8))
               ..add(
                 Text(
@@ -610,7 +617,7 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
               );
           }
 
-          content.addAll([
+          bodyContent.addAll([
             const SizedBox(height: 12),
             FutureBuilder<List<DreamEntry>>(
               future: _dreamsFuture,
@@ -653,29 +660,21 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
               },
             ),
             const SizedBox(height: 24),
-          ];
+          ]);
 
           return RefreshIndicator(
             onRefresh: _handleRefresh,
-            child: CustomScrollView(
+            child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  sliver: SliverToBoxAdapter(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: content,
-                    ),
-                  ),
-                ),
-              ],
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+              children: bodyContent,
             ),
           );
         },
       ),
     );
   }
+
 
   Widget _buildOnboardingSection(bool horizontal) {
     if (horizontal) {
