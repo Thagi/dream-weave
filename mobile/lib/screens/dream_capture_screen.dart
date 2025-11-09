@@ -648,12 +648,18 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
           Row(
             children: [
               Expanded(
-                child: FilledButton.icon(
+                child: FilledButton(
                   onPressed: _isSchedulingAlarm || !_requireVoiceCheckIn
                       ? null
                       : _scheduleAlarm,
-                  icon: const Icon(Icons.alarm_add),
-                  label: Text(_isSchedulingAlarm ? 'Scheduling…' : 'Set wake alarm'),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.alarm_add),
+                      const SizedBox(width: 8),
+                      Text(_isSchedulingAlarm ? 'Scheduling…' : 'Set wake alarm'),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
