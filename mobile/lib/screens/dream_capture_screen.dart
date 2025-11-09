@@ -818,6 +818,10 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
       runSpacing: 8,
       children: [
         FilledButton(
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            minimumSize: const Size(0, 48),
+          ),
           onPressed: scheduling || !_requireVoiceCheckIn ? null : _scheduleAlarm,
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -825,7 +829,13 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
             children: [
               Icon(scheduling ? Icons.hourglass_top : Icons.alarm_add),
               const SizedBox(width: 8),
-              Text(scheduling ? 'Scheduling…' : 'Set wake alarm'),
+              Flexible(
+                child: Text(
+                  scheduling ? 'Scheduling…' : 'Set wake alarm',
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                ),
+              ),
             ],
           ),
         ),
@@ -907,7 +917,8 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
     final bool hasDreamHistory = _hasDreams;
     String readinessMessage;
     if (_assistantError != null) {
-      readinessMessage = _assistantError!;
+      readinessMessage =
+          'Wake ritual のブロッカーを解消してください。詳細は STEP 0 に表示されています。';
     } else if (!permissionsReady) {
       readinessMessage = '通知とマイクの初期化が完了するとボイスキャプチャが開放されます。';
     } else if (!hasAlarm) {
