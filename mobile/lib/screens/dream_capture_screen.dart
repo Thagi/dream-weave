@@ -57,7 +57,7 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
   String? _journalStatus;
   bool _hasDreams = false;
 
-  bool _captureFormExpanded = false;
+  bool _captureFormExpanded = true;
   bool _captureFormToggled = false;
   int _captureFormExpansionRevision = 0;
 
@@ -646,10 +646,13 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
 
           return RefreshIndicator(
             onRefresh: _handleRefresh,
-            child: ListView(
+            child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
-              children: bodyContent,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: bodyContent,
+              ),
             ),
           );
         },
