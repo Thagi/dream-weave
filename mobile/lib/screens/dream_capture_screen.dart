@@ -950,7 +950,13 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
             children: [
               Icon(_isRecording ? Icons.stop : Icons.fiber_manual_record),
               const SizedBox(width: 8),
-              Text(_isRecording ? 'Stop recording' : 'Start recording'),
+              Flexible(
+                child: Text(
+                  _isRecording ? 'Stop recording' : 'Start recording',
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                ),
+              ),
             ],
           ),
         ),
