@@ -58,6 +58,7 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
 
   bool _captureFormExpanded = false;
   bool _captureFormToggled = false;
+  int _captureFormExpansionRevision = 0;
 
   bool _assistantsExpanded = true;
   int _assistantsExpansionRevision = 0;
@@ -159,7 +160,13 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
         final hasDreams = dreams.isNotEmpty;
         _hasDreams = hasDreams;
         if (!_captureFormToggled) {
-          _captureFormExpanded = !hasDreams;
+          final shouldExpand = !hasDreams;
+          if (_captureFormExpanded != shouldExpand) {
+            _captureFormExpanded = shouldExpand;
+            _captureFormExpansionRevision++;
+          } else {
+            _captureFormExpanded = shouldExpand;
+          }
         }
         if (!hasDreams && !_voiceCaptureExpanded) {
           _voiceCaptureExpanded = true;
@@ -512,15 +519,15 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final showOnboardingRow = constraints.maxWidth >= 760;
+          final showOnboardingRow = constraints.maxWidth >= 960;
           final content = <Widget>[
             Text(
               '起床直後の断片を逃さず記録しましょう。音声入力・AI要約・夢日記生成までワンストップで体験できます。',
               style: Theme.of(context).textTheme.bodyLarge,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _buildOnboardingSection(showOnboardingRow),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             if (_highlights != null && _highlights!.topTags.isNotEmpty) ...[
               _buildTagFilters(context),
               const SizedBox(height: 12),
@@ -654,12 +661,12 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
         },
         children: [
           const SizedBox(height: 12),
-          _buildWakePrepChecklist(),
-          const SizedBox(height: 12),
           _buildWakePrepActions(),
           const SizedBox(height: 12),
+          _buildWakePrepChecklist(),
+          const SizedBox(height: 8),
           Text(
-            '睡眠前にここを済ませておくと、目覚めた瞬間に夢の断片へ集中できます。',
+            '睡眠前にここを整えておくと、目覚めた瞬間から夢の断片に集中できます。',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
@@ -710,16 +717,7 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
             ? '録音必須: ${alarm.requireTranscription ? 'ON' : 'OFF'} · メモ: ${alarm.note ?? 'なし'}'
             : '起床時刻とメモをセットして、未来の自分に合図を送りましょう。',
       ),
-      _buildChecklistTile(
-        icon: _requireVoiceCheckIn ? Icons.mic : Icons.mic_none,
-        iconColor: _requireVoiceCheckIn
-            ? theme.colorScheme.primary
-            : theme.colorScheme.tertiary,
-        title: _requireVoiceCheckIn ? '録音必須モードはONです' : '録音必須モードはOFFです',
-        subtitle: _requireVoiceCheckIn
-            ? '録音を完了するまでアラームを止められないようにし、朝の集中力を確保します。'
-            : 'STEP 1 で録音を始めるには、このモードをONにしてからアラームを再設定してください。',
-      ),
+      _buildVoiceLockChecklistTile(),
     ];
 
     return LayoutBuilder(
@@ -739,7 +737,9 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
         }
 
         const spacing = 12.0;
-        final tileWidth = (constraints.maxWidth - spacing) / 2;
+        final columns = constraints.maxWidth >= 680 ? 3 : 2;
+        final totalSpacing = spacing * (columns - 1);
+        final tileWidth = (constraints.maxWidth - totalSpacing) / columns;
         return Wrap(
           spacing: spacing,
           runSpacing: spacing,
@@ -757,98 +757,34 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
   }
 
   Widget _buildWakePrepActions() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final actionTiles = <Widget>[
-          _buildVoiceLockToggleCard(),
-          _buildAlarmActionCard(),
-        ];
-
-        if (constraints.maxWidth < 520) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              actionTiles[0],
-              const SizedBox(height: 12),
-              actionTiles[1],
-            ],
-          );
-        }
-
-        const spacing = 12.0;
-        final tileWidth = (constraints.maxWidth - spacing) / 2;
-        return Wrap(
-          spacing: spacing,
-          runSpacing: spacing,
-          children: actionTiles
-              .map(
-                (tile) => SizedBox(
-                  width: tileWidth,
-                  child: tile,
-                ),
-              )
-              .toList(growable: false),
-        );
-      },
-    );
-  }
-
-  Widget _buildVoiceLockToggleCard() {
-    final theme = Theme.of(context);
-    final subtitle = _scheduledAlarm != null
-        ? '設定を変更するには一度アラームをクリアしてから再設定してください。'
-        : (_requireVoiceCheckIn
-            ? '音声チェックを終えるまでアラームを停止できないようにして、記録の集中力を守ります。'
-            : 'OFFにすると音声チェック前にアラームを止められますが、STEP 1 は開始できません。');
-    final toggleDisabled = _scheduledAlarm != null || _isSchedulingAlarm;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '録音が完了するまでアラームを止めない',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-          Switch.adaptive(
-            value: _requireVoiceCheckIn,
-            onChanged: toggleDisabled
-                ? null
-                : (value) {
-                    setState(() {
-                      _requireVoiceCheckIn = value;
-                    });
-                  },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAlarmActionCard() {
-    final theme = Theme.of(context);
-    final hasAlarm = _scheduledAlarm != null;
     final scheduling = _isSchedulingAlarm;
+    final hasAlarm = _scheduledAlarm != null;
+    return Wrap(
+      spacing: 12,
+      runSpacing: 8,
+      children: [
+        FilledButton.icon(
+          onPressed: scheduling || !_requireVoiceCheckIn ? null : _scheduleAlarm,
+          icon: Icon(scheduling ? Icons.hourglass_top : Icons.alarm_add),
+          label: Text(scheduling ? 'Scheduling…' : 'Set wake alarm'),
+        ),
+        TextButton.icon(
+          onPressed: hasAlarm ? _cancelAlarm : null,
+          icon: const Icon(Icons.close),
+          label: const Text('Clear alarm'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVoiceLockChecklistTile() {
+    final theme = Theme.of(context);
+    final toggleDisabled = _scheduledAlarm != null || _isSchedulingAlarm;
+    final subtitle = _requireVoiceCheckIn
+        ? '音声チェックを終えるまでアラームを止めず、朝の集中力を守ります。'
+        : 'ONにするとSTEP 1 の録音が解放されます。設定後はアラームを再予約してください。';
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(16),
@@ -856,39 +792,45 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Wake alarm control',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            hasAlarm
-                ? '時間やメモを更新するときは再設定してください。録音必須モードの状態も自動で反映されます。'
-                : '録音必須モードをONにしたままアラームを予約すると、STEP 1 の録音が解放されます。',
-            style: theme.textTheme.bodySmall,
-          ),
-          const SizedBox(height: 12),
-          FilledButton(
-            onPressed: scheduling || !_requireVoiceCheckIn ? null : _scheduleAlarm,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(scheduling ? Icons.hourglass_top : Icons.alarm_add),
-                const SizedBox(width: 8),
-                Text(scheduling ? 'Scheduling…' : 'Set wake alarm'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: hasAlarm ? _cancelAlarm : null,
-              icon: const Icon(Icons.close),
-              label: const Text('Clear alarm'),
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                _requireVoiceCheckIn ? Icons.mic : Icons.mic_none,
+                color: _requireVoiceCheckIn
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.tertiary,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _requireVoiceCheckIn ? '録音必須モードはONです' : '録音必須モードはOFFです',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              Switch.adaptive(
+                value: _requireVoiceCheckIn,
+                onChanged: toggleDisabled
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _requireVoiceCheckIn = value;
+                        });
+                      },
+              ),
+            ],
           ),
         ],
       ),
@@ -933,10 +875,13 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
           });
         },
         children: [
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           LayoutBuilder(
             builder: (context, constraints) {
               final isCompact = constraints.maxWidth < 680;
+              final followUpMessage = hasDreamHistory
+                  ? '録音を止めると文字起こしがDream transcriptに追記され、タイムラインの先頭で振り返れます。'
+                  : '録音を止めると文字起こしがDream transcriptに追記され、最初の記録が完成します。';
               final guidanceColumn = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -954,17 +899,10 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
                         ? 'Wake ritual を再確認してください。問題の詳細は STEP 0 に表示されています。'
                         : readinessMessage,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   Text(
-                    '録音を止めると自動でDream transcriptの入力欄に追記され、後で手入力した内容と混ざりません。',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    hasDreamHistory
-                        ? '新しい録音はタイムラインの先頭に追記され、過去の夢とも並べて振り返れます。'
-                        : 'まだ夢の記録がありません。朝の録音を保存するとタイムラインが開きます。',
-                    style: theme.textTheme.bodyMedium,
+                    followUpMessage,
+                    style: theme.textTheme.bodySmall,
                   ),
                 ],
               );
@@ -976,7 +914,7 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     guidanceColumn,
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     controls,
                   ],
                 );
@@ -1139,6 +1077,7 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
 
   Widget _buildCaptureFormSection() {
     return ExpansionTile(
+      key: ValueKey<int>(_captureFormExpansionRevision),
       tilePadding: EdgeInsets.zero,
       childrenPadding: EdgeInsets.zero,
       maintainState: true,
