@@ -642,7 +642,7 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
               },
             ),
             const SizedBox(height: 24),
-          ]);
+          ];
 
           return RefreshIndicator(
             onRefresh: _handleRefresh,
