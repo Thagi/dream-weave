@@ -577,47 +577,29 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
             const SizedBox(height: 24),
           ];
 
-          final bodyContent = <Widget>[]
-            ..addAll(intro);
-
-          if (_hasDreams) {
-            bodyContent
-              ..addAll(filters)
-              ..addAll(onboarding);
-          } else {
-            bodyContent
-              ..addAll(onboarding)
-              ..addAll(filters);
-          }
-
-          bodyContent
-            ..add(_buildCaptureFormSection())
-            ..add(const SizedBox(height: 24))
-            ..add(_buildHighlightsSection())
-            ..add(const SizedBox(height: 24))
-            ..add(_buildPromptSuggestions())
-            ..add(const SizedBox(height: 16))
-            ..add(
+          final bodyContent = <Widget>[
+            ...intro,
+            if (_hasDreams) ...filters else ...onboarding,
+            if (_hasDreams) ...onboarding else ...filters,
+            _buildCaptureFormSection(),
+            const SizedBox(height: 24),
+            _buildHighlightsSection(),
+            const SizedBox(height: 24),
+            _buildPromptSuggestions(),
+            const SizedBox(height: 16),
+            Text(
+              _activeTag == null
+                  ? 'Recently recorded dreams'
+                  : 'Dreams tagged "$_activeTag"',
+              style: theme.textTheme.titleMedium,
+            ),
+            if (_journalStatus != null) ...[
+              const SizedBox(height: 8),
               Text(
-                _activeTag == null
-                    ? 'Recently recorded dreams'
-                    : 'Dreams tagged "$_activeTag"',
-                style: theme.textTheme.titleMedium,
+                _journalStatus!,
+                style: theme.textTheme.bodySmall,
               ),
-            );
-
-          if (_journalStatus != null) {
-            bodyContent
-              ..add(const SizedBox(height: 8))
-              ..add(
-                Text(
-                  _journalStatus!,
-                  style: theme.textTheme.bodySmall,
-                ),
-              );
-          }
-
-          bodyContent.addAll([
+            ],
             const SizedBox(height: 12),
             FutureBuilder<List<DreamEntry>>(
               future: _dreamsFuture,
