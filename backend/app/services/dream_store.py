@@ -83,35 +83,40 @@ class DreamStore:
     def create(self, payload: DreamCreate) -> Dream:
         """Persist a dream and return the stored representation."""
 
+        # Pre-compute derived fields outside the lock to minimise contention.
+        tags = list(payload.tags)
+        auto_tags = _generate_tags(payload.transcript)
+        if not tags:
+            tags = auto_tags
+        else:
+            tags = list(dict.fromkeys([*tags, *auto_tags]))
+
+        summary = _summarise(payload.transcript)
+        now = datetime.now(UTC)
+
         with self._lock:
             self._counter += 1
             identifier = str(self._counter)
 
-        tags = list(payload.tags)
-        if not tags:
-            tags = _generate_tags(payload.transcript)
-        else:
-            auto_tags = _generate_tags(payload.transcript)
-            tags = list(dict.fromkeys([*tags, *auto_tags]))
+            timestamp = now
+            if self._last_created_at is not None:
+                minimum = self._last_created_at + _TIMESTAMP_INCREMENT
+                timestamp = max(timestamp, minimum + _TIMESTAMP_EPSILON)
 
-        timestamp = datetime.now(UTC)
-        if self._last_created_at is not None:
-            minimum = self._last_created_at + _TIMESTAMP_INCREMENT
-            timestamp = max(timestamp, minimum + _TIMESTAMP_EPSILON)
+            dream = Dream(
+                id=identifier,
+                title=payload.title,
+                transcript=payload.transcript,
+                tags=tags,
+                mood=payload.mood,
+                summary=summary,
+                created_at=timestamp,
+                journal=None,
+                journal_generated_at=None,
+            )
+            self._records[dream.id] = _DreamRecord(dream=dream)
+            self._last_created_at = timestamp
 
-        dream = Dream(
-            id=identifier,
-            title=payload.title,
-            transcript=payload.transcript,
-            tags=tags,
-            mood=payload.mood,
-            summary=_summarise(payload.transcript),
-            created_at=timestamp,
-            journal=None,
-            journal_generated_at=None,
-        )
-        self._records[dream.id] = _DreamRecord(dream=dream)
-        self._last_created_at = timestamp
         return dream
 
     def list(
@@ -125,20 +130,26 @@ class DreamStore:
     ) -> list[Dream]:
         """Return stored dreams ordered by creation time descending."""
 
+        with self._lock:
+            records_snapshot = list(self._records.values())
+
         dreams = sorted(
-            (record.dream for record in self._records.values()),
+            (record.dream for record in records_snapshot),
             key=lambda dream: dream.created_at,
             reverse=True,
         )
+        start_utc = _normalise_to_utc(start)
+        end_utc = _normalise_to_utc(end)
+
         filtered: list[Dream] = []
         for dream in dreams:
             if tag and tag not in dream.tags:
                 continue
             if mood and dream.mood != mood:
                 continue
-            if start and dream.created_at < start:
+            if start_utc and dream.created_at < start_utc:
                 continue
-            if end and dream.created_at > end:
+            if end_utc and dream.created_at > end_utc:
                 continue
             if query:
                 haystack = " ".join(
@@ -160,8 +171,9 @@ class DreamStore:
     def get(self, dream_id: str) -> Dream | None:
         """Retrieve a specific dream by its identifier if available."""
 
-        record = self._records.get(dream_id)
-        return record.dream if record else None
+        with self._lock:
+            record = self._records.get(dream_id)
+            return record.dream if record else None
 
     def update(self, dream_id: str, payload: DreamUpdate) -> Dream | None:
         """Mutate an existing dream entry with the provided payload."""
@@ -247,7 +259,8 @@ class DreamStore:
     def highlights(self) -> DreamHighlights:
         """Calculate lightweight insights for the recorded dreams."""
 
-        dreams = [record.dream for record in self._records.values()]
+        with self._lock:
+            dreams = [record.dream for record in self._records.values()]
         tag_counter: Counter[str] = Counter()
         mood_counter: Counter[str] = Counter()
 
@@ -297,3 +310,13 @@ def _generate_tags(transcript: str) -> list[str]:
     ]
     counter: Counter[str] = Counter(filtered)
     return [word for word, _ in counter.most_common(_MAX_AUTO_TAGS)]
+
+
+def _normalise_to_utc(value: datetime | None) -> datetime | None:
+    """Return a timezone-aware datetime in UTC for comparisons."""
+
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
