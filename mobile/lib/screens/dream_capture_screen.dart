@@ -519,7 +519,7 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final showOnboardingRow = constraints.maxWidth >= 960;
+          final showOnboardingRow = constraints.maxWidth >= 800;
           final content = <Widget>[
             Text(
               '起床直後の断片を逃さず記録しましょう。音声入力・AI要約・夢日記生成までワンストップで体験できます。',
@@ -946,7 +946,6 @@ class _DreamCaptureScreenState extends State<DreamCaptureScreen> {
           onPressed: _canStartRecording ? _toggleRecording : null,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(_isRecording ? Icons.stop : Icons.fiber_manual_record),
               const SizedBox(width: 8),
